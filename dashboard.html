@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - NSS Report Builder</title>
+  <meta name="color-scheme" content="light">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Firebase Compat Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root {
+      --primary: #1A7B54;
+      --primary-hover: #146140;
+      --bg: #F3F4F6;
+      --sidebar-bg: #FCF8F2;
+      --sidebar-hover: rgba(0, 0, 0, 0.05);
+      --surface: #ffffff;
+      --text: #111827;
+      --text-muted: #6B7280;
+      --border: #E5E7EB;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 8px 20px rgba(26, 123, 84, 0.4);
+      --active-bg: #E0F2FE;
+      --active-text: #0369A1;
+    }
+    .dark-mode {
+      --bg: #0f172a;
+      --sidebar-bg: #1e293b;
+      --sidebar-hover: rgba(255, 255, 255, 0.05);
+      --surface: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --active-bg: rgba(26, 123, 84, 0.2);
+      --active-text: #34d399;
+      color-scheme: dark;
+    }
+    body {
+      margin: 0; padding: 0; font-family: 'Inter', sans-serif;
+      background: var(--bg); display: flex; height: 100vh; overflow: hidden;
+      color: var(--text);
+      animation: pageFadeIn 0.5s ease;
+      opacity: 1; transition: opacity 0.5s ease, background-color 0.3s ease, color 0.3s ease;
+    }
+    body.fade-out { opacity: 0; }
+    @keyframes pageFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 250px; background: var(--sidebar-bg); color: var(--text);
+      display: flex; flex-direction: column; flex-shrink: 0;
+      border-right: 1px solid var(--border);
+    }
+    .sidebar-header {
+      padding: 24px 24px; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 12px;
+      color: var(--text);
+    }
+    .sidebar-header svg { width: 24px; height: 24px; }
+    
+    .nav-list { list-style: none; padding: 0 12px; margin: 20px 0 0 0; flex: 1; }
+    .nav-item {
+      padding: 10px 16px; margin-bottom: 4px; cursor: pointer; display: flex; align-items: center; gap: 14px;
+      font-size: 15px; font-weight: 500; color: var(--text-muted); border-radius: 8px; transition: all 0.2s ease;
+    }
+    .nav-item i { width: 20px; height: 20px; color: var(--text-muted); }
+    .nav-item:hover { background: var(--sidebar-hover); color: var(--text); }
+    .nav-item.active { background: var(--active-bg); color: var(--active-text); }
+    .nav-item.active i { color: var(--active-text); }
+    
+    .sidebar-bottom { padding: 12px; margin-bottom: 12px; }
+    
+    /* Main Content */
+    .main-content {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .topbar {
+      height: 70px; background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 32px; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .search-box {
+      display: flex; align-items: center;
+      padding: 8px; width: 300px;
+    }
+    .search-box i { color: #9CA3AF; width: 20px; height: 20px; }
+    .search-box input {
+      border: none; background: transparent; outline: none; margin-left: 12px; font-family: inherit; width: 100%; font-size: 15px; color: var(--text);
+    }
+    .search-box input::placeholder { color: #9CA3AF; }
+    
+    .user-profile {
+      display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: var(--text);
+      cursor: pointer; transition: opacity 0.2s ease;
+    }
+    .user-profile:hover { opacity: 0.8; }
+    .avatar-wrapper {
+      position: relative; width: 36px; height: 36px;
+    }
+    .avatar {
+      width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #E5E7EB;
+    }
+    .status-dot {
+      position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; background: #10B981; border: 2px solid white; border-radius: 50%;
+    }
+    
+    .workspace-wrapper {
+      padding: 32px; flex: 1; overflow: hidden; display: flex; flex-direction: column;
+    }
+    .workspace-card {
+      background: var(--surface); border-radius: 16px; border: 1px solid var(--border);
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+      position: relative;
+    }
+    
+    /* Empty State */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      flex: 1; text-align: center; color: var(--text-muted);
+      animation: fadeIn 0.4s ease; padding: 40px;
+    }
+    .empty-state-img {
+      width: 250px; height: auto; margin-bottom: 24px;
+    }
+    .empty-state h3 { color: var(--text); font-size: 20px; font-weight: 700; margin: 0 0 12px 0; }
+    .empty-state p { font-size: 15px; margin: 0 0 32px 0; color: #6B7280; }
+    .btn-create-first {
+      background: var(--primary); color: white; border: none; padding: 12px 28px;
+      border-radius: 30px; font-size: 15px; font-weight: 500; cursor: pointer;
+      box-shadow: var(--shadow-lg); transition: all 0.2s ease;
+    }
+    .btn-create-first:hover { background: var(--primary-hover); transform: translateY(-2px); }
+    
+    .fab {
+      position: absolute; bottom: 32px; right: 32px;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: var(--primary); color: white; border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: var(--shadow-lg);
+      transition: all 0.2s ease; z-index: 10;
+    }
+    .fab:hover { background: var(--primary-hover); transform: scale(1.05); }
+    .fab svg { width: 28px; height: 28px; }
+
+    /* Table */
+    .table-container {
+      background: var(--surface); border-radius: 12px; border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm); overflow: visible;
+      animation: fadeIn 0.4s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .reports-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .reports-table th, .reports-table td {
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+    }
+    .reports-table th { font-weight: 600; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .reports-table tbody tr { transition: all 0.2s ease; }
+    .reports-table tbody tr:hover { background: var(--sidebar-hover); }
+    .reports-table tbody tr:last-child td { border-bottom: none; }
+    
+    .project-name-cell { display: flex; align-items: center; gap: 12px; }
+    .project-icon { color: var(--primary); opacity: 0.8; width: 18px; height: 18px; }
+    .project-name { font-weight: 500; color: var(--text); cursor: pointer; text-decoration: none; font-size: 15px; }
+    .project-name:hover { color: var(--primary); text-decoration: underline; }
+    
+    /* Dropdown Actions */
+    .actions-cell { position: relative; width: 60px; text-align: right; }
+    .btn-icon {
+      background: transparent; border: none; padding: 8px; border-radius: 6px;
+      cursor: pointer; color: var(--text-muted); transition: 0.2s; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-icon:hover { background: var(--sidebar-hover); color: var(--text); }
+    
+    .dropdown-menu {
+      position: absolute; right: 40px; top: 10px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-lg);
+      width: 180px; z-index: 50; display: none; flex-direction: column; padding: 8px 0;
+    }
+    .dropdown-menu.show { display: flex; animation: dropFade 0.2s ease; }
+    @keyframes dropFade { from { opacity: 0; transform: scale(0.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    
+    .dropdown-item {
+      padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+      background: none; border: none; width: 100%; text-align: left;
+      font-size: 14px; color: var(--text); cursor: pointer; font-family: inherit;
+    }
+    .dropdown-item i { width: 16px; height: 16px; color: var(--text-muted); }
+    .dropdown-item:hover { background: var(--sidebar-hover); }
+    .dropdown-item.danger { color: #e53e3e; }
+    .dropdown-item.danger i { color: #e53e3e; }
+    
+    .star-btn {
+      background: none; border: none; cursor: pointer; color: #cbd5e1;
+      padding: 4px; display: flex; align-items: center; justify-content: center; transition: 0.2s;
+    }
+    .star-btn:hover { transform: scale(1.1); }
+    .star-btn.starred { color: #f59e0b; fill: #f59e0b; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 100;
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+    .modal-overlay.show { display: flex; opacity: 1; }
+    .modal {
+      background: var(--surface); padding: 30px; border-radius: 12px; width: 100%; max-width: 420px;
+      box-shadow: var(--shadow-lg); transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.show .modal { transform: scale(1); }
+    .modal h3 { margin: 0 0 20px 0; font-size: 20px; color: var(--text); }
+    .modal .form-control {
+      width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px;
+      box-sizing: border-box; font-family: inherit; font-size: 15px; outline: none; transition: border-color 0.2s;
+      background: var(--bg); color: var(--text);
+    }
+    .modal .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(4, 102, 101, 0.1); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
+    .modal-actions button {
+      padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; font-size: 14px; transition: 0.2s;
+    }
+    .btn-cancel { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border) !important; }
+    .btn-cancel:hover { background: var(--sidebar-hover); color: var(--text); }
+    .btn-submit { background: var(--primary); color: white; }
+    .btn-submit:hover { background: var(--primary-hover); }
+
+    /* Toast */
+    .toast-container {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 10px; z-index: 1000; pointer-events: none;
+    }
+    .toast {
+      background: #1e293b; color: white; padding: 12px 24px; border-radius: 30px;
+      font-size: 14px; font-weight: 500; box-shadow: var(--shadow-md);
+      animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards, toastOut 0.3s 3s forwards;
+      display: flex; align-items: center; gap: 8px;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(10px); } }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="24" height="24" rx="6" fill="#1E3A8A" />
+        <path d="M7 16L12 8L17 16" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M7 16H17" stroke="white" stroke-width="2" stroke-linecap="round" />
+      </svg>
+      NSS Builder
+    </div>
+    <ul class="nav-list">
+      <li class="nav-item active" onclick="setFilter('all')"><i data-lucide="layout-grid"></i> All Reports</li>
+      <li class="nav-item" onclick="setFilter('recent')"><i data-lucide="clock"></i> Recent</li>
+      <li class="nav-item" onclick="setFilter('starred')"><i data-lucide="star"></i> Starred</li>
+      <li class="nav-item" onclick="setFilter('trash')"><i data-lucide="trash-2"></i> Trash</li>
+    </ul>
+    <div class="sidebar-bottom">
+      <ul class="nav-list">
+        <li class="nav-item" onclick="openSettings()"><i data-lucide="settings"></i> Settings</li>
+        <li class="nav-item" onclick="openProfile()"><i data-lucide="user"></i> Profile</li>
+        <li class="nav-item" onclick="logout()"><i data-lucide="log-out"></i> Logout</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="topbar">
+      <div class="search-box">
+        <i data-lucide="search"></i>
+        <input type="text" placeholder="Search" id="searchInput" oninput="renderTable()">
+      </div>
+      <div class="user-profile" onclick="openProfile()">
+        <div class="avatar-wrapper">
+          <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=100&auto=format&fit=crop" id="topbarUserAvatar" alt="Admin" class="avatar">
+          <div class="status-dot"></div>
+        </div>
+        <span id="topbarUserName">Admin User</span>
+      </div>
+    </div>
+    
+    <div class="workspace-wrapper">
+      <div class="workspace-card">
+        <div id="tableWrapper" style="display:flex;flex-direction:column;flex:1;overflow:auto;">
+          <!-- Injected via JS -->
+        </div>
+        <button class="fab" onclick="openModal('new')" title="New Report">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="toast-container" id="toastContainer"></div>
+  </div>
+
+  <!-- Shared Modal for New / Rename -->
+  <div class="modal-overlay" id="projectModal">
+    <div class="modal">
+      <h3 id="modalTitle">Create New Report</h3>
+      <input type="text" class="form-control" id="projectNameInput" placeholder="e.g. Blood Donation Camp Report">
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-submit" id="modalSubmitBtn" onclick="handleModalSubmit()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <h3>Settings</h3>
+      <div class="form-group" style="margin-bottom:15px">
+        <label style="display:block;margin-bottom:8px;font-size:14px;color:var(--text-muted);font-weight:500;">Appearance</label>
+        <select class="form-control" id="themeSelect">
+          <option value="light">Light Mode</option>
+          <option value="dark">Dark Mode</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+        <button class="btn-submit" onclick="saveSettings()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <h3>Profile Management</h3>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+        <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=100&auto=format&fit=crop" id="profileAvatarImg" class="avatar" style="width:60px;height:60px;object-fit:cover;" alt="User">
+        <button class="btn-cancel" style="padding:6px 12px" onclick="document.getElementById('avatarUpload').click()">Change Avatar</button>
+        <input type="file" id="avatarUpload" style="display:none" accept="image/*" onchange="handleAvatarUpload(event)">
+      </div>
+      <div class="form-group" style="margin-bottom:15px">
+        <label style="display:block;margin-bottom:8px;font-size:14px;color:var(--text-muted);font-weight:500;">Full Name</label>
+        <input type="text" class="form-control" id="profileNameInput" placeholder="Admin User">
+      </div>
+      <div class="form-group" style="margin-bottom:24px">
+        <label style="display:block;margin-bottom:8px;font-size:14px;color:var(--text-muted);font-weight:500;">Email Address</label>
+        <input type="email" class="form-control" id="profileEmailInput" placeholder="admin@example.com" disabled>
+        <small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block;">Email cannot be changed here.</small>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeProfile()">Cancel</button>
+        <button class="btn-submit" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    let currentFilter = 'all';
+    let activeDropdown = null;
+    let modalMode = 'new'; // 'new' or 'rename'
+    let renameTargetId = null;
+    let currentUserId = null;
+    let cloudProjects = [];
+
+    // Apply Settings
+    const prefs = JSON.parse(localStorage.getItem('nss_settings') || '{"theme":"light"}');
+    if (prefs.theme === 'dark') document.body.classList.add('dark-mode');
+
+    function seamlessRedirect(url) {
+      document.body.classList.add('fade-out');
+      setTimeout(() => { window.location.href = url; }, 400);
+    }
+
+    // Load local profile name if exists
+    const localProfile = JSON.parse(localStorage.getItem('nss_profile') || '{"name":"Admin User"}');
+    document.getElementById('topbarUserName').innerText = localProfile.name;
+    if(localProfile.avatar) {
+      document.getElementById('topbarUserAvatar').src = localProfile.avatar;
+    }
+
+    // Check Auth and Initialize Listener
+    if (auth) {
+      auth.onAuthStateChanged(user => {
+        if (!user) {
+          window.location.href = 'index.html';
+        } else {
+          currentUserId = user.uid;
+          if(user.displayName) {
+             document.getElementById('topbarUserName').innerText = user.displayName;
+          }
+          if(user.photoURL) {
+             document.getElementById('topbarUserAvatar').src = user.photoURL;
+          }
+          
+          // Setup real-time listener for this user's projects
+          db.collection('projects')
+            .where('userId', '==', user.uid)
+            .onSnapshot(snapshot => {
+              cloudProjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              renderTable();
+            }, err => {
+              console.error("Firestore error:", err);
+              renderTable();
+            });
+        }
+      });
+    } else {
+      renderTable();
+    }
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.actions-cell')) {
+        closeAllDropdowns();
+      }
+    });
+
+    function logout() {
+      if(auth) auth.signOut();
+      else window.location.href='index.html';
+    }
+
+    function showToast(msg) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<i data-lucide="check-circle" style="width:16px;height:16px;color:#10b981;"></i> ${msg}`;
+      container.appendChild(toast);
+      lucide.createIcons({root: toast});
+      setTimeout(() => toast.remove(), 3500);
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      const items = document.querySelectorAll('.nav-list:first-of-type .nav-item');
+      items.forEach(el => {
+        el.classList.remove('active');
+        if (el.getAttribute('onclick').includes(`'${filter}'`)) {
+          el.classList.add('active');
+        }
+      });
+      
+      const titleMap = { 'all': 'My NSS Reports', 'recent': 'Recent Reports', 'starred': 'Starred Reports', 'trash': 'Trash' };
+      const titleEl = document.getElementById('workspace-title');
+      if (titleEl) titleEl.innerText = titleMap[filter];
+      
+      renderTable();
+    }
+
+    function toggleStar(id) {
+      const p = cloudProjects.find(x => x.id === id);
+      if(p) {
+        p.starred = !p.starred;
+        if(db) {
+          db.collection('projects').doc(id).update({ starred: p.starred });
+        }
+      }
+    }
+
+    function toggleDropdown(id, event) {
+      event.stopPropagation();
+      const wasOpen = document.getElementById(`dropdown-${id}`).classList.contains('show');
+      closeAllDropdowns();
+      if (!wasOpen) {
+        document.getElementById(`dropdown-${id}`).classList.add('show');
+        activeDropdown = id;
+      }
+    }
+    
+    function closeAllDropdowns() {
+      document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
+      activeDropdown = null;
+    }
+
+    function renderTable() {
+      const wrapper = document.getElementById('tableWrapper');
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      
+      let projects = [...cloudProjects];
+      projects.sort((a,b) => b.updatedAt - a.updatedAt);
+      
+      if(currentFilter === 'all') projects = projects.filter(p => !p.deleted);
+      if(currentFilter === 'recent') projects = projects.filter(p => !p.deleted).slice(0, 5);
+      if(currentFilter === 'starred') projects = projects.filter(p => !p.deleted && p.starred);
+      if(currentFilter === 'trash') projects = projects.filter(p => p.deleted);
+      
+      projects = projects.filter(p => p.name.toLowerCase().includes(query));
+      
+      if(projects.length === 0) {
+        let title = "No reports found.";
+        let msg = "You don't have any reports yet. Create your first one!";
+        let illustration = `
+          <svg class="empty-state-img" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="180" cy="50" r="4" fill="#FCD34D" />
+            <circle cx="210" cy="80" r="3" fill="#93C5FD" />
+            <circle cx="90" cy="140" r="5" fill="#A7F3D0" />
+            
+            <path d="M120 60 L140 40 H180 V120 H120 Z" fill="#E5E7EB" stroke="#4B5563" stroke-width="2" stroke-linejoin="round" />
+            <line x1="130" y1="70" x2="170" y2="70" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" />
+            <line x1="130" y1="85" x2="160" y2="85" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" />
+            
+            <g transform="translate(160, 40) rotate(10)">
+              <rect x="0" y="0" width="60" height="70" rx="4" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+              <rect x="0" y="0" width="60" height="20" fill="#10B981" rx="4" />
+              <circle cx="15" cy="0" r="3" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+              <circle cx="30" cy="0" r="3" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+              <circle cx="45" cy="0" r="3" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+              <line x1="20" y1="35" x2="40" y2="55" stroke="#4B5563" stroke-width="2" stroke-linecap="round" />
+              <line x1="40" y1="35" x2="20" y2="55" stroke="#4B5563" stroke-width="2" stroke-linecap="round" />
+            </g>
+            
+            <path d="M100 90 L115 70 H155 L170 90 H220 C225.5 90 230 94.5 230 100 V140 C230 145.5 225.5 150 220 150 H90 C84.5 150 80 145.5 80 140 V100 C80 94.5 84.5 90 90 90 H100 Z" fill="#E0F2FE" stroke="#4B5563" stroke-width="2" stroke-linejoin="round" />
+            <path d="M70 160 L90 100 H230 L210 160 Z" fill="#BAE6FD" stroke="#4B5563" stroke-width="2" stroke-linejoin="round" />
+            
+            <circle cx="110" cy="115" r="16" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+            <circle cx="110" cy="115" r="12" fill="#E0F2FE" />
+            <line x1="98" y1="127" x2="80" y2="145" stroke="#4B5563" stroke-width="6" stroke-linecap="round" />
+            <line x1="98" y1="127" x2="80" y2="145" stroke="#93C5FD" stroke-width="2" stroke-linecap="round" />
+            
+            <circle cx="180" cy="125" r="18" fill="#FFFFFF" stroke="#4B5563" stroke-width="2" />
+            <circle cx="180" cy="125" r="14" fill="#D1FAE5" />
+            <line x1="192" y1="137" x2="210" y2="155" stroke="#4B5563" stroke-width="6" stroke-linecap="round" />
+            <line x1="192" y1="137" x2="210" y2="155" stroke="#FDE047" stroke-width="2" stroke-linecap="round" />
+          </svg>`;
+          
+        if (currentFilter === 'starred') { title = "No starred reports found."; msg = "You haven't starred any reports yet."; }
+        if (currentFilter === 'trash') { title = "Trash is empty."; msg = "No deleted reports found."; }
+        if (query) { title = "No reports found."; msg = "No reports match your search."; }
+        
+        wrapper.innerHTML = `
+          <div class="empty-state">
+            ${illustration}
+            <h3>${title}</h3>
+            <p>${msg}</p>
+            ${currentFilter === 'all' && !query ? `<button class="btn-create-first" onclick="openModal('new')">Create your first report</button>` : ''}
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+      
+      let rowsHtml = projects.map(p => {
+        const date = new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        const time = new Date(p.updatedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
+        
+        const isTrash = p.deleted;
+        const starClass = p.starred ? 'starred' : '';
+        const starFill = p.starred ? 'currentColor' : 'none';
+
+        let actionMenu = '';
+        if (isTrash) {
+          actionMenu = `
+            <button class="dropdown-item" onclick="restoreProject('${p.id}')"><i data-lucide="rotate-ccw"></i> Restore</button>
+            <button class="dropdown-item danger" onclick="permanentlyDelete('${p.id}')"><i data-lucide="trash-2"></i> Delete Forever</button>
+          `;
+        } else {
+          actionMenu = `
+            <button class="dropdown-item" onclick="seamlessRedirect('nss_report_builder.html?id=${p.id}')"><i data-lucide="external-link"></i> Open</button>
+            <button class="dropdown-item" onclick="openModal('rename', '${p.id}', '${p.name.replace(/'/g, "\\'")}')"><i data-lucide="edit-2"></i> Rename</button>
+            <button class="dropdown-item" onclick="duplicateProject('${p.id}')"><i data-lucide="copy"></i> Duplicate</button>
+            <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+            <button class="dropdown-item danger" onclick="deleteProject('${p.id}')"><i data-lucide="trash"></i> Move to Trash</button>
+          `;
+        }
+
+        return `
+          <tr>
+            <td>
+              <div class="project-name-cell">
+                <i data-lucide="file-text" class="project-icon"></i>
+                <a href="${isTrash ? '#' : `nss_report_builder.html?id=${p.id}`}" class="project-name" ${isTrash ? 'style="pointer-events:none;color:var(--text-muted);"' : ''}>${p.name}</a>
+                ${!isTrash ? `<button class="star-btn ${starClass}" onclick="toggleStar('${p.id}', event)"><svg width="16" height="16" viewBox="0 0 24 24" fill="${starFill}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>` : ''}
+              </div>
+            </td>
+            <td style="color:var(--text-muted)">${date} <span style="font-size:12px;opacity:0.7;margin-left:8px">${time}</span></td>
+            <td class="actions-cell">
+              <button class="btn-icon" onclick="toggleDropdown('${p.id}', event)"><i data-lucide="more-horizontal"></i></button>
+              <div class="dropdown-menu" id="dropdown-${p.id}">
+                ${actionMenu}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      wrapper.innerHTML = `
+        <table class="reports-table">
+          <thead>
+            <tr>
+              <th>Report Name</th>
+              <th>Last Modified</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      `;
+      lucide.createIcons();
+    }
+
+    /* Profile & Settings Logic */
+    function openSettings() {
+      const prefs = JSON.parse(localStorage.getItem('nss_settings') || '{"theme":"light"}');
+      document.getElementById('themeSelect').value = prefs.theme || 'light';
+      document.getElementById('settingsModal').classList.add('show');
+    }
+    
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.remove('show');
+    }
+    
+    function saveSettings() {
+      const theme = document.getElementById('themeSelect').value;
+      localStorage.setItem('nss_settings', JSON.stringify({ theme: theme }));
+      
+      if (theme === 'dark') document.body.classList.add('dark-mode');
+      else document.body.classList.remove('dark-mode');
+      
+      closeSettings();
+      showToast('Settings saved successfully!');
+    }
+    
+    function openProfile() {
+      const profile = JSON.parse(localStorage.getItem('nss_profile') || '{"name":"Admin User","email":"admin@example.com"}');
+      document.getElementById('profileNameInput').value = profile.name;
+      document.getElementById('profileEmailInput').value = profile.email;
+      
+      if(profile.avatar) {
+        document.getElementById('profileAvatarImg').src = profile.avatar;
+      } else {
+        document.getElementById('profileAvatarImg').src = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=100&auto=format&fit=crop";
+      }
+      
+      if (auth && auth.currentUser) {
+        document.getElementById('profileEmailInput').value = auth.currentUser.email || profile.email;
+        document.getElementById('profileNameInput').value = auth.currentUser.displayName || profile.name;
+        if(auth.currentUser.photoURL) document.getElementById('profileAvatarImg').src = auth.currentUser.photoURL;
+      }
+      
+      document.getElementById('profileModal').classList.add('show');
+    }
+    
+    function handleAvatarUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('profileAvatarImg').src = e.target.result;
+        }
+        reader.readAsDataURL(file);
+      }
+    }
+    
+    function closeProfile() {
+      document.getElementById('profileModal').classList.remove('show');
+    }
+    
+    function saveProfile() {
+      const name = document.getElementById('profileNameInput').value.trim();
+      const email = document.getElementById('profileEmailInput').value.trim();
+      const avatar = document.getElementById('profileAvatarImg').src;
+      
+      localStorage.setItem('nss_profile', JSON.stringify({ name: name, email: email, avatar: avatar }));
+      
+      document.getElementById('topbarUserName').innerText = name;
+      document.getElementById('topbarUserAvatar').src = avatar;
+      
+      closeProfile();
+      showToast('Profile updated!');
+    }
+
+    /* Modal Logic */
+    function openModal(mode, id = null, currentName = '') {
+      modalMode = mode;
+      renameTargetId = id;
+      
+      const modal = document.getElementById('projectModal');
+      const title = document.getElementById('modalTitle');
+      const input = document.getElementById('projectNameInput');
+      const btn = document.getElementById('modalSubmitBtn');
+      
+      if (mode === 'new') {
+        title.innerText = 'Create New Report';
+        input.value = '';
+        btn.innerText = 'Create';
+      } else if (mode === 'rename') {
+        title.innerText = 'Rename Report';
+        input.value = currentName;
+        btn.innerText = 'Save';
+        closeAllDropdowns();
+      }
+      
+      modal.classList.add('show');
+      setTimeout(() => input.focus(), 100);
+    }
+    
+    function closeModal() {
+      document.getElementById('projectModal').classList.remove('show');
+    }
+
+    function handleModalSubmit() {
+      if (modalMode === 'new') createNewProject();
+      else if (modalMode === 'rename') processRename();
+    }
+
+    function createNewProject() {
+      const name = document.getElementById('projectNameInput').value.trim();
+      if(!name) return;
+      
+      const newProj = {
+        name: name,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        starred: false,
+        deleted: false,
+        userId: currentUserId || 'anonymous',
+        reportData: null
+      };
+      
+      if(!db) {
+        alert("Firebase is not initialized. Cannot create report.");
+        return;
+      }
+      
+      const newRef = db.collection('projects').doc();
+      newRef.set(newProj).then(() => {
+        closeModal();
+        seamlessRedirect(`nss_report_builder.html?id=${newRef.id}`);
+      }).catch(err => {
+        console.error("Error creating project: ", err);
+        alert("Cloud Error: " + err.message + "\n\nCould not save to Firebase.");
+      });
+    }
+
+    function processRename() {
+      const name = document.getElementById('projectNameInput').value.trim();
+      if(!name || !renameTargetId) return;
+      
+      const p = cloudProjects.find(x => x.id === renameTargetId);
+      if(p && db) {
+        let updateData = { name: name, updatedAt: Date.now() };
+        if (p.reportData) {
+          updateData['reportData.filename'] = name;
+        }
+        db.collection('projects').doc(renameTargetId).update(updateData).then(() => {
+          showToast('Report renamed');
+        }).catch(err => showToast('Error renaming report: ' + err.message));
+      }
+      closeModal();
+    }
+
+    /* Action Logic */
+    function deleteProject(id) {
+      closeAllDropdowns();
+      if(db) {
+        db.collection('projects').doc(id).update({ deleted: true, updatedAt: Date.now() }).then(() => {
+          showToast('Moved to Trash');
+        }).catch(err => showToast('Error: ' + err.message));
+      }
+    }
+
+    function restoreProject(id) {
+      closeAllDropdowns();
+      if(db) {
+        db.collection('projects').doc(id).update({ deleted: false, updatedAt: Date.now() }).then(() => {
+          showToast('Report restored');
+        }).catch(err => showToast('Error: ' + err.message));
+      }
+    }
+
+    function permanentlyDelete(id) {
+      closeAllDropdowns();
+      if(confirm('Permanently delete this report? This cannot be undone.')) {
+        if(db) {
+          db.collection('projects').doc(id).delete().then(() => {
+            showToast('Report permanently deleted');
+          }).catch(err => showToast('Error: ' + err.message));
+        }
+      }
+    }
+
+    function duplicateProject(id) {
+      closeAllDropdowns();
+      let p = cloudProjects.find(x => x.id === id);
+      if(p) {
+        const newProj = { ...p };
+        delete newProj.id;
+        newProj.name = newProj.name + ' (Copy)';
+        newProj.createdAt = Date.now();
+        newProj.updatedAt = Date.now();
+        
+        if(db) {
+          db.collection('projects').add(newProj).then(() => {
+            showToast('Report duplicated');
+          }).catch(err => showToast('Error: ' + err.message));
+        }
+      }
+    }
+
+    // Handle Enter key in modal
+    document.getElementById('projectNameInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') handleModalSubmit();
+    });
+
+    // Init
+    renderTable();
+  </script>
+</body>
+</html>

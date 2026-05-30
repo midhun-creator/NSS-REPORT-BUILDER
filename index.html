@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - NSS Report Builder</title>
+  <meta name="color-scheme" content="light">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Firebase Compat Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Inter:wght@300;400;500;600&display=swap');
+
+    :root {
+      --primary: #1A7B54;
+      --primary-hover: #146140;
+      --surface: #ffffff;
+      --text: #111827;
+      --text-muted: #6B7280;
+      --border: #D1D5DB;
+      --bg-right: #F9FAFB;
+    }
+    body, html {
+      margin: 0; padding: 0; font-family: 'Inter', sans-serif;
+      height: 100%; width: 100%; overflow: hidden;
+      color: var(--text);
+      animation: pageFadeIn 0.6s ease;
+      opacity: 1; transition: opacity 0.5s ease;
+    }
+    body.fade-out { opacity: 0; }
+    @keyframes pageFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .split-layout {
+      display: flex; height: 100vh; width: 100%;
+    }
+    .left-pane {
+      flex: 1;
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: white; padding: 40px; overflow: hidden;
+    }
+    .left-pane::before {
+      content: '';
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background-image: url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=2000&auto=format&fit=crop');
+      background-size: cover; background-position: center;
+      z-index: 0;
+    }
+    .left-pane::after {
+      content: '';
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(26, 85, 59, 0.88); /* Green overlay matching the design */
+      z-index: 1;
+    }
+    .left-content {
+      position: relative; z-index: 2; max-width: 480px; text-align: center;
+    }
+    .left-content h1 { 
+      font-size: 38px; font-weight: 700; margin: 0 0 16px 0; letter-spacing: -0.5px; 
+    }
+    .left-content p { 
+      font-size: 16px; font-weight: 400; line-height: 1.6; opacity: 0.95; margin: 0;
+    }
+    .book-icon {
+      width: 90px; height: 90px; margin-bottom: 20px;
+    }
+    
+    .right-pane {
+      flex: 1; max-width: 650px; background: var(--bg-right);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 40px; z-index: 2;
+    }
+    .login-form-container {
+      width: 100%; max-width: 400px;
+      background: var(--surface);
+      padding: 48px 40px;
+      border-radius: 12px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.05), 0 5px 15px rgba(0,0,0,0.03);
+      animation: slideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .login-header { margin-bottom: 32px; text-align: center; }
+    .login-header h2 { 
+      font-family: 'Playfair Display', serif;
+      font-size: 32px; font-weight: 600; margin: 0 0 12px 0; color: #1a202c; 
+    }
+    .login-header p { font-size: 15px; color: var(--text-muted); margin: 0; }
+    
+    .form-group { margin-bottom: 24px; text-align: left; }
+    .form-group label {
+      display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px; color: #1a202c;
+    }
+    .form-control {
+      width: 100%; padding: 12px 14px;
+      border: 1px solid #D1D5DB;
+      border-radius: 6px;
+      font-size: 15px; font-family: inherit;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+      background: #F3F4F6;
+    }
+    .form-control::placeholder { color: #9CA3AF; }
+    .form-control:focus {
+      outline: none; border-color: var(--primary); background: white;
+      box-shadow: 0 0 0 3px rgba(26, 123, 84, 0.1);
+    }
+    .btn {
+      width: 100%; padding: 14px;
+      background: var(--primary); color: white;
+      border: none; border-radius: 6px;
+      font-size: 15px; font-weight: 500; cursor: pointer;
+      transition: all 0.2s ease; margin-top: 10px;
+    }
+    .btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(25, 120, 80, 0.25); }
+    .btn:active { transform: translateY(0); }
+    
+    .forgot-link {
+      display: block; text-align: right; font-size: 14px; font-weight: 500; color: #16805E;
+      text-decoration: none; margin-top: 12px; transition: 0.2s;
+    }
+    .forgot-link:hover { color: var(--primary-hover); text-decoration: underline; }
+    
+    @media (max-width: 900px) {
+      .left-pane { display: none; }
+      .right-pane { max-width: 100%; }
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="split-layout">
+    <div class="left-pane">
+      <div class="left-content">
+        <!-- SVG Book Icon matching the design -->
+        <svg class="book-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <mask id="bookMask">
+            <rect width="100" height="100" fill="white" />
+            <polygon points="51,-5 80,-5 80,45 65.5,33 51,45" fill="black" />
+            <rect x="22" y="77" width="80" height="7" fill="black" />
+          </mask>
+          <rect x="8" y="10" width="84" height="80" rx="14" fill="white" mask="url(#bookMask)" />
+        </svg>
+        <h1>NSS Report Builder</h1>
+        <p>The ultimate workspace for National Service Scheme officers to instantly design, manage, and compile beautiful PDF and Word reports.</p>
+      </div>
+    </div>
+    
+    <div class="right-pane">
+      <div class="login-form-container">
+        <div class="login-header">
+          <h2>Welcome back</h2>
+          <p>Please enter your details to sign in.</p>
+        </div>
+        
+        <form id="loginForm">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="email" class="form-control" placeholder="Enter your email" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password" class="form-control" placeholder="Enter your password" required>
+            <a href="#" class="forgot-link">Forgot password?</a>
+          </div>
+          <button type="submit" class="btn">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function seamlessRedirect(url) {
+      document.body.classList.add('fade-out');
+      setTimeout(() => { window.location.href = url; }, 500);
+    }
+
+    // If user is already logged in, skip login page
+    if (auth) {
+      auth.onAuthStateChanged(user => {
+        if (user) seamlessRedirect('dashboard.html');
+      });
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const btn = e.target.querySelector('button');
+      
+      btn.innerHTML = '<span style="display:flex;align-items:center;justify-content:center;gap:8px;"><div style="width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></div> Authenticating...</span>';
+      
+      if (!auth || !auth.app) {
+        alert("Firebase Configuration is missing or invalid. Please check firebase-config.js");
+        btn.innerHTML = 'Sign in';
+        return;
+      }
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          // Redirect handled by onAuthStateChanged
+        })
+        .catch((error) => {
+          alert("Login Failed: " + error.message);
+          btn.innerHTML = 'Sign in';
+        });
+    });
+  </script>
+</body>
+</html>
