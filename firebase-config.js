@@ -1,6 +1,6 @@
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBsDZDMUsYCXxeVRrQkH9pfLZqh8nsH32w",
+  apiKey: "AIzaSyAA-bxGxWhtPaIbSopI1WXkDGGSSRiQp-w",
   authDomain: "nssreportbuilder.firebaseapp.com",
   projectId: "nssreportbuilder",
   storageBucket: "nssreportbuilder.firebasestorage.app",
