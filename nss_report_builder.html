@@ -1441,23 +1441,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   
-  if (isViewOnly) {
-    document.body.classList.add('view-only-mode');
-    loadProjectFromCloud(true);
-    return;
-  }
-  
   if (auth) {
     auth.onAuthStateChanged(user => {
-      if (!user) {
-        window.location.href = 'index.html';
-      } else {
+      if (user) {
         currentUserId = user.uid;
-        loadProjectFromCloud(false);
+      }
+      
+      if (isViewOnly) {
+        document.body.classList.add('view-only-mode');
+        loadProjectFromCloud(true);
+      } else {
+        if (!user) {
+          window.location.href = 'index.html';
+        } else {
+          loadProjectFromCloud(false);
+        }
       }
     });
   } else {
-    loadProjectFromCloud(false);
+    if (isViewOnly) document.body.classList.add('view-only-mode');
+    loadProjectFromCloud(isViewOnly);
   }
 });
 
@@ -1489,9 +1492,15 @@ function loadProjectFromCloud(isViewOnly = false) {
     
     if (project.reportData) {
       appState = JSON.parse(JSON.stringify(project.reportData));
+      // Fallbacks for backward compatibility
+      if (!appState.accent) appState.accent = "#006064";
+      if (!appState.zoom) appState.zoom = 100;
+      if (appState.darkMode === undefined) appState.darkMode = false;
+      if (!appState.sections) appState.sections = [];
+      if (!appState.filename) appState.filename = project.name || "Untitled Report";
     } else {
       appState = JSON.parse(JSON.stringify(defaultState));
-      appState.filename = project.name; // Initialize filename to project name
+      appState.filename = project.name || "Untitled Report"; // Initialize filename to project name
       if(!isViewOnly) {
         db.collection('projects').doc(currentProjectId).update({
           reportData: appState
@@ -1501,14 +1510,29 @@ function loadProjectFromCloud(isViewOnly = false) {
       }
     }
 
-    loadState();
-    initUI();
-    if(!isViewOnly) renderEditor();
-    updatePreview();
-    pushUndoState(true);
+    try {
+      loadState();
+      initUI();
+      if(!isViewOnly) renderEditor();
+      updatePreview();
+      pushUndoState(true);
+    } catch(err) {
+      console.error("Error initializing UI with project data:", err);
+      alert("Failed to render the project due to data corruption. Loading safe defaults.");
+      appState = JSON.parse(JSON.stringify(defaultState));
+      appState.filename = project.name || "Untitled Report";
+      loadState();
+      if(!isViewOnly) renderEditor();
+      updatePreview();
+      pushUndoState(true);
+    }
   }).catch(err => {
     console.error("Error fetching project:", err);
-    alert("Failed to load project from cloud. Permissions may be missing.");
+    if (err && err.name === 'FirebaseError') {
+      alert("Failed to load project from cloud. Permissions may be missing.");
+    } else {
+      alert("An unexpected error occurred while loading the project.");
+    }
   });
 }
 
